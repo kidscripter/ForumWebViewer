@@ -1,0 +1,330 @@
+﻿
+@{
+    ViewBag.Title = "Forum Viewer";
+}
+
+<h2>Forum Viewer</h2>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Sign-In with Microsoft Guide</title>
+</head>
+
+<body>
+	@if (!Request.IsAuthenticated)
+	{<!-- If the user is not authenticated, display the sign-in button -->
+				<a href="@Url.Action("SignIn", "Home")" style="text-decoration: none;">
+					<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="300px" height="50px" viewBox="0 0 3278 522" class="SignInButton">
+					<style type="text/css">
+						.fil0:hover {
+							fill: #4B4B4B;
+						}
+
+						.fnt0 {
+							font-size: 260px;
+							font-family: 'Segoe UI Semibold', 'Segoe UI';
+							text-decoration: none;
+						}
+</style>
+					<rect class="fil0" x="2" y="2" width="3174" height="517" fill="black" />
+
+					<rect x="150" y="129" width="122" height="122" fill="#F35325" />
+
+					<rect x="284" y="129" width="122" height="122" fill="#81BC06" />
+
+					<rect x="150" y="263" width="122" height="122" fill="#05A6F0" />
+
+					<rect x="284" y="263" width="122" height="122" fill="#FFBA08" />
+
+					<text x="470" y="357" fill="white" class="fnt0">Sign in with Microsoft</text>
+        </svg>
+				</a> }
+							else
+							{
+
+<script type="text/javascript" src="~/Scripts/jquery-3.5.1.min.js"></script>
+<script type="text/javascript" src="~/Scripts/umd/popper.min.js"></script>
+<script type="text/javascript" src="~/Scripts/axios.min.js"></script>
+<script type="text/javascript" src="~/Scripts/dicomParser.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="~/Scripts/daterangepicker.js"></script>
+
+
+<script type="text/javascript">
+	$(document).ready(function () {
+		//Get current date
+		let today = new Date();
+		let dd = today.getDate();
+		let mm = today.getMonth() + 1;
+		let yyyy = today.getFullYear();
+
+		if (dd < 10) {
+			dd = '0' + dd;
+		}
+		if (mm < 10) {
+			mm = '0' + mm;
+		}
+		today = mm + '/' + dd + '/' + yyyy;
+		//Load patient list
+		$.ajax({
+			url: '@Url.Action("patientList")',
+			type: "POST",
+			data: {},
+			success: function (data) {
+				var gender = '';
+				$.each(data.patientList, function (i, user) {
+					switch (user.gender) {
+						case '1':
+							gender = "M";
+							break;
+						case '2':
+							gender = "F";
+							break;
+						case '3':
+							gender = "N/A";
+							break;
+					}
+					var tblRow = "<tr data-uid='" + user.patient_id + "'><td>" + user.personNbr + "</td>" + "<td>" + user.patientName + "</td>" + "<td>" + user.DOB + "</td>" + "<td>" + gender + "</td></tr>";
+					$(tblRow).appendTo("#patientList tbody");
+				});
+			},
+			error: function (passParams) {
+				// code here
+			}
+		});
+		//On click load visit dates for that patient
+		$('#patientList tbody').on('click', 'tr', function () {
+			var uid = $(this).attr("data-uid");
+			//clear highlight and set it on the clicked patient
+			$(this).addClass("table-primary").siblings().removeClass('table-primary');
+			$.ajax({
+				url: '@Url.Action("dateList")',
+				type: "POST",
+				data: { id: $(this).attr("data-uid")},
+				success: function (data) {
+					$("#dateList tbody").html("");
+					$("#studyList tbody").html("");
+					$.each(data.dateList, function (i, user) {
+						var tblRow = "<tr data-uid='" + uid + "' data-seriesdate='" + user.seriesdate + "'><td>" + user.date + "</td></tr>";
+						$(tblRow).appendTo("#dateList tbody");
+						window.scrollTo(0, 0);
+					});
+				},
+				error: function (passParams) {
+					// code here
+				}
+			});
+		});
+		//On click load images for the date of selected patient
+		$('#dateList tbody').on('click', 'tr', function () {
+			//clear highlight and set it on the clicked date
+			$(this).addClass("table-primary").siblings().removeClass('table-primary');
+			$.ajax({
+				url: '@Url.Action("imageList")',
+				type: "POST",
+				data: { id: $(this).attr("data-uid"), seriesdate: $(this).attr("data-seriesdate") },
+				success: function (data) {
+					$("#studyList tbody").html("");
+					var laterality = '';
+					$.each(data.iamgeList, function (i, user) {
+						switch (user.laterality) {
+							case '0':
+								laterality = "OS";
+								break;
+							case '1':
+								laterality = "OD";
+								break;
+							case '2':
+								laterality = "OU";
+								break;
+						}
+						var tblRow = "<tr data-id='" + user.id + "'><td>" + user.type + "</td><td>" + user.device + "</td><td>" + laterality + "</td></tr>";
+						$(tblRow).appendTo("#studyList tbody");
+					});
+				},
+				error: function (passParams) {
+					// code here
+				}
+			});
+		});
+		//On Test display modal hide
+		$("#imageModal").on('hide.bs.modal', function () {
+			document.getElementById("altview").style.display = "none";
+			document.getElementById("viewport").style.display = "none";
+		});
+		//On click load dicom in modal
+		$('#studyList tbody').on('click', 'tr', function () {
+			loadDefault('./home/loadimage?id=' + $(this).attr("data-id"))
+		});
+		//Monitor search box for changes
+		var timer;
+		var delay = 700; // delay after last input
+
+		$('#patientSearch').bind('input', function () {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(function () {
+				search({ searchName: name });
+			}, delay);
+		});
+		$(function () {
+			$('#daterange').daterangepicker({
+				singleDatePicker: true,
+				showDropdowns: true,
+				minYear: 1901,
+				maxYear: 2040,
+				locale: {
+					cancelLabel: 'Clear'
+				},
+				autoApply: true,
+				autoUpdateInput: false,
+			}, function (start, end, label) {
+					search({ searchDateFrom: start.format('YYYY-MM-DD') });
+			});
+		});
+		document.querySelector("#daterange").value = today;
+		$('#daterange').on('apply.daterangepicker', function (ev, picker) {
+			$(this).val(picker.startDate.format('MM/DD/YYYY'));
+		});
+		$('#daterange').change(function () {
+			if (this.value == '') {
+				search({ searchDateFrom: '' });
+			}
+		});
+	});
+	function search(searchField) {
+		var date = '';
+		term = document.querySelector("#patientSearch").value;
+		if (searchField.searchDateFrom) { date = searchField.searchDateFrom; }
+		else if (term == "" && document.querySelector("#daterange").value == ""){
+			term = '';
+			date = '';
+		}
+		else if (term != "" && document.querySelector("#daterange").value == "") {
+			date = '';
+		}
+		else {
+			date = $('#daterange').data('daterangepicker').startDate._d.toISOString().split('T')[0];
+		}
+		//Reset patient list and load search
+		$.ajax({
+			url: '@Url.Action("searchList")',
+			type: "POST",
+			data: { 'term': term, 'date': date },
+			success: function (data) {
+				$("#dateList tbody").html("");
+				$("#studyList tbody").html("");
+				$("#patientList tbody").html("");
+				var gender = '';
+				$.each(data.patientList, function (i, user) {
+					switch (user.gender) {
+						case '1':
+							gender = "M";
+							break;
+						case '2':
+							gender = "F";
+							break;
+						case '3':
+							gender = "N/A";
+							break;
+					}
+					var tblRow = "<tr data-uid='" + user.patient_id + "'><td>" + user.personNbr + "</td>" + "<td>" + user.patientName + "</td>" + "<td>" + user.DOB + "</td>" + "<td>" + gender + "</td></tr>";
+					$(tblRow).appendTo("#patientList tbody");
+				});
+			},
+			error: function (passParams) {
+				// code here
+			}
+		});
+	}
+	function loadAlternative(id) {
+		var loadID = id.split("=");
+		var url = "/dwv-simplistic-main/index.html?id=" + loadID[1];
+		$("#imageModal").modal("show");
+		document.getElementById("altview").style.display = "block";
+		$("#altview").empty();
+		$("#altview").append("<iframe style='width: -webkit-fill-available; height: 1200px;' src='" + url + "' />");
+	}
+
+</script>
+<div class="container text-center">
+	<div class="row align-items-center" style="padding:5px;">
+		<div class="col-auto">
+			<label for="patientSearch" class="form-label">Patient Name/ID</label>
+		</div>
+		<div class="col-auto">
+			<input type="text" class="form-control" id="patientSearch">
+		</div>
+		<div class="col-auto">
+			<label for="daterange" class="form-label">Visit Date</label>
+		</div>
+		<div class="col-auto">
+			<input type="text" class="form-control" id="daterange" autocomplete="off">
+		</div>
+	</div>
+</div>
+	<div class="container text-center">
+		<div class="row">
+			<div class="col-6">
+				<table class="table table-sm table-hover" id="patientList">
+					<thead>
+						<tr>
+							<th>Patient ID</th>
+							<th>Patient Name</th>
+							<th>Date of Birth</th>
+							<th>Gender</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
+			<div class="col-2">
+				<table class="table table-sm table-hover" id="dateList">
+					<thead>
+						<tr>
+							<th>Visit Date</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
+			<div class="col-4">
+				<table class="table table-sm table-hover" id="studyList">
+					<thead>
+						<tr>
+							<th>Type</th>
+							<th>Device</th>
+							<th>Laterality</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+		<div class="modal-dialog modal-xl">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h1 class="modal-title fs-5" id="ModalLabel"></h1>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<iframe id="viewport" style="width: -webkit-fill-available; height: 1200px; display: none;"></iframe>
+					<div id="altview" style="display:none;"></div>
+				
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script type="text/javascript" src="~/Scripts/dicom-pdf.js"></script>
+	}
+	@if (!string.IsNullOrWhiteSpace(Request.QueryString["errormessage"]))
+	{
+<div style="background-color:red;color:white;font-weight: bold;">Error: @Request.QueryString["errormessage"]</div>}
+</body>
+</html>
